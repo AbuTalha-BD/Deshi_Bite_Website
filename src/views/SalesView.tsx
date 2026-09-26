@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { SaleType } from '../types';
-import { ShoppingCart, Search, FileText, ShoppingBag, Filter, Calendar, Trash2, AlertTriangle, X } from 'lucide-react';
+import { ShoppingCart, Search, FileText, ShoppingBag, Filter, Calendar } from 'lucide-react';
 
 export const SalesView: React.FC = () => {
   const {
@@ -10,17 +10,12 @@ export const SalesView: React.FC = () => {
     setSelectedSaleForInvoice,
     setIsInvoiceModalOpen,
     setIsSellModalOpen,
-    clearAllSalesAndDues,
-    deleteSale,
   } = useApp();
 
   const isAdmin = currentUser?.role === 'ADMIN';
 
   const [search, setSearch] = useState('');
   const [saleTypeFilter, setSaleTypeFilter] = useState<'ALL' | SaleType>('ALL');
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [saleToDelete, setSaleToDelete] = useState<{ id: string; invoiceNo: string } | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   // Filter sales
   const relevantSales = isAdmin ? sales : sales.filter((s) => s.agentId === currentUser?.id);
@@ -58,26 +53,13 @@ export const SalesView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {isAdmin && sales.length > 0 && (
-            <button
-              onClick={() => setShowClearConfirm(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors cursor-pointer"
-              title="Clear all sales and reset executive dues to 0"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>সব বিক্রি ও বকেয়া মুছুন</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setIsSellModalOpen(true)}
-            className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md shadow-purple-500/20 transition-all cursor-pointer"
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>SELL PRODUCT</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setIsSellModalOpen(true)}
+          className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md shadow-purple-500/20 transition-all cursor-pointer"
+        >
+          <ShoppingBag className="w-4 h-4" />
+          <span>SELL PRODUCT</span>
+        </button>
       </div>
 
       {/* Summary KPI chips */}
@@ -279,29 +261,17 @@ export const SalesView: React.FC = () => {
                   </td>
 
                   <td className="py-3 px-4 text-center">
-                    <div className="inline-flex items-center gap-1.5 justify-center">
-                      <button
-                        onClick={() => {
-                          setSelectedSaleForInvoice(sale);
-                          setIsInvoiceModalOpen(true);
-                        }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-800 font-bold text-xs transition-colors cursor-pointer"
-                        title="View Cash Memo"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>View Memo</span>
-                      </button>
-
-                      {isAdmin && (
-                        <button
-                          onClick={() => setSaleToDelete({ id: sale.id, invoiceNo: sale.invoiceNo })}
-                          className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200 transition-colors cursor-pointer"
-                          title="Delete this sale order"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedSaleForInvoice(sale);
+                        setIsInvoiceModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-800 font-bold text-xs transition-colors cursor-pointer"
+                      title="View Cash Memo"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>View Memo</span>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -309,102 +279,6 @@ export const SalesView: React.FC = () => {
           </table>
         </div>
       </div>
-
-      {/* Confirmation Modal: Clear All Sales & Due History */}
-      {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-200">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2 text-rose-600">
-                <AlertTriangle className="w-5 h-5" />
-                <h3 className="font-extrabold text-slate-900 text-sm">সব বিক্রি ও বকেয়া হিস্ট্রি মুছবেন?</h3>
-              </div>
-              <button
-                onClick={() => setShowClearConfirm(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed">
-              আপনি কি নিশ্চিত যে সমস্ত সেলস রেকর্ড এবং এক্সিকিউটিভদের বর্তমান বকেয়া (Due) হিস্ট্রি মুছে ০ করতে চান? এটি নিশ্চিত করলে বর্তমান সকল বিক্রির ডাটা মুছে ফ্রেশ শুরু হবে।
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setShowClearConfirm(false)}
-                className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                বাতিল (Cancel)
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={async () => {
-                  setIsDeleting(true);
-                  await clearAllSalesAndDues();
-                  setIsDeleting(false);
-                  setShowClearConfirm(false);
-                }}
-                className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-500/20 cursor-pointer disabled:opacity-50"
-              >
-                {isDeleting ? 'মুছে ফেলা হচ্ছে...' : 'হ্যাঁ, সব মুছুন (Clear All)'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Modal: Delete Single Sale Order */}
-      {saleToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-200">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2 text-rose-600">
-                <AlertTriangle className="w-5 h-5" />
-                <h3 className="font-extrabold text-slate-900 text-sm">অর্ডার মুছে ফেলবেন?</h3>
-              </div>
-              <button
-                onClick={() => setSaleToDelete(null)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed">
-              আপনি কি ইনভয়েস <strong className="font-mono text-slate-900">{saleToDelete.invoiceNo}</strong> মুছে ফেলতে চান? এটি মুছে দিলে প্রোডাক্টের স্টক স্বয়ংক্রিয়ভাবে আগের অবস্থায় ফেরত দেওয়া হবে।
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setSaleToDelete(null)}
-                className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                বাতিল
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={async () => {
-                  setIsDeleting(true);
-                  await deleteSale(saleToDelete.id);
-                  setIsDeleting(false);
-                  setSaleToDelete(null);
-                }}
-                className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-500/20 cursor-pointer disabled:opacity-50"
-              >
-                {isDeleting ? 'মুছছি...' : 'মুছে ফেলুন'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
