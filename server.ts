@@ -55,18 +55,43 @@ if (!fs.existsSync(DB_DIR)) {
   }
 }
 
+// Bangladesh Phone helper
+export function cleanPhoneNumber(p: string | null | undefined): string {
+  if (!p) return '';
+  return String(p).replace(/\D/g, '').replace(/^88/, '');
+}
+
 // Load or initialize DB
 function loadDatabase(): DatabaseSchema {
   let loaded: DatabaseSchema | null = null;
+
+  // 1. Try writable database file first (e.g. /tmp/deshi_bite_data/deshi_bite_db.json or ./data/deshi_bite_db.json)
   if (fs.existsSync(DB_FILE)) {
     try {
       const content = fs.readFileSync(DB_FILE, 'utf-8');
       loaded = JSON.parse(content);
     } catch (e) {
-      console.error('Error reading db file, restoring defaults:', e);
+      console.error('Error reading db file from DB_FILE:', e);
     }
   }
 
+  // 2. If not found in writable directory (e.g. cold start on Vercel), load from bundled data/deshi_bite_db.json
+  if (!loaded) {
+    const bundledPath = path.join(process.cwd(), 'data', 'deshi_bite_db.json');
+    if (fs.existsSync(bundledPath)) {
+      try {
+        const content = fs.readFileSync(bundledPath, 'utf-8');
+        loaded = JSON.parse(content);
+        if (loaded) {
+          saveDatabaseLocalSync(loaded);
+        }
+      } catch (e) {
+        console.error('Error reading bundled data/deshi_bite_db.json:', e);
+      }
+    }
+  }
+
+  // 3. Fallback to initial seeds
   if (!loaded) {
     const initialDb: DatabaseSchema = {
       products: INITIAL_PRODUCTS,
@@ -85,7 +110,7 @@ function loadDatabase(): DatabaseSchema {
 
   // Ensure default structures are always present
   if (!loaded.products) loaded.products = INITIAL_PRODUCTS;
-  if (!loaded.users) loaded.users = INITIAL_USERS;
+  if (!loaded.users || !loaded.users.length) loaded.users = INITIAL_USERS;
   if (!loaded.sales) loaded.sales = [];
   if (!loaded.stockTransactions) loaded.stockTransactions = [];
   if (!loaded.payments) loaded.payments = [];
@@ -121,6 +146,7 @@ async function saveDatabase(newDb: DatabaseSchema): Promise<void> {
 
 let db = loadDatabase();
 let lastMongoSyncTime = 0;
+let lastMongoConnectAttempt = 0;
 
 // Bangladesh Time helper
 function getBangladeshDateTime() {
@@ -145,8 +171,12 @@ function getBangladeshDateTime() {
 // Refresh state from MongoDB if connected
 async function refreshStateFromMongo(force = false) {
   if (!isMongoActive()) {
-    if (process.env.MONGODB_URI || getActiveUri()) {
-      await connectMongo();
+    const now = Date.now();
+    if (force || now - lastMongoConnectAttempt > 60000) {
+      lastMongoConnectAttempt = now;
+      if (process.env.MONGODB_URI || getActiveUri()) {
+        await connectMongo();
+      }
     }
   }
 
@@ -174,7 +204,17 @@ async function refreshStateFromMongo(force = false) {
 
 export async function createExpressApp() {
   const app = express();
+
+  // Support pre-parsed bodies from serverless platforms (Vercel, AWS Lambda)
+  // This prevents express.json() from hanging on an already-consumed request stream
+  app.use((req, res, next) => {
+    if (req.body && typeof req.body === 'object') {
+      (req as any)._body = true;
+    }
+    next();
+  });
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
   // Universal CORS & Preflight handling
   app.use((req, res, next) => {
@@ -297,13 +337,18 @@ export async function createExpressApp() {
   api.post('/auth/login', async (req, res) => {
     await refreshStateFromMongo(false);
     const { phone, password } = req.body;
-    const user = db.users.find((u) => u.phone === phone?.trim());
+
+    const cleanInputPhone = cleanPhoneNumber(phone);
+    const user = db.users.find((u) => {
+      const dbPhone = cleanPhoneNumber(u.phone);
+      return dbPhone === cleanInputPhone || u.phone === phone?.trim();
+    });
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid phone number or password' });
     }
 
-    if (user.passwordHash !== password?.trim()) {
+    if (user.passwordHash?.trim() !== password?.trim()) {
       return res.status(401).json({ error: 'Invalid phone number or password' });
     }
 
@@ -677,31 +722,55 @@ export async function createExpressApp() {
 
   // Sales: Create Sale (Atomic Transaction)
   api.post('/sales', async (req, res) => {
-    const { agentId, saleType, items, customerName, customerPhone, customerAddress, discount } = req.body;
-    const agent = db.users.find((u) => u.id === agentId && u.role === 'AGENT');
-    if (!agent) {
-      return res.status(403).json({ error: 'Authorized Agent account required to create sale' });
+    const {
+      agentId,
+      assignedAgentId,
+      saleType,
+      items,
+      customerName,
+      customerPhone,
+      customerAddress,
+      discount,
+      paymentStatus: requestedPaymentStatus,
+    } = req.body;
+
+    const creatorUser = db.users.find((u) => u.id === agentId);
+    if (!creatorUser) {
+      return res.status(403).json({ error: 'Authorized account required to create sale' });
+    }
+
+    // Determine target agent (Admin can assign to an active agent or record directly)
+    let agent = creatorUser;
+    if (creatorUser.role === 'ADMIN' && assignedAgentId) {
+      const assigned = db.users.find((u) => u.id === assignedAgentId && u.role === 'AGENT');
+      if (assigned) {
+        agent = assigned;
+      }
     }
 
     if (!items || !items.length) {
       return res.status(400).json({ error: 'At least one product item is required' });
     }
 
-    // Pre-validate stock
+    // Pre-validate stock with floating-point tolerance
     for (const item of items) {
       const prod = db.products.find((p) => p.id === item.productId);
       if (!prod) {
-        return res.status(400).json({ error: `Product ${item.productName} not found` });
+        return res.status(400).json({ error: `Product ${item.productName || item.productId} not found` });
       }
 
       if (item.unit === 'KG') {
-        if (prod.stockKg < item.quantity) {
+        const availableKg1000 = Math.round((prod.stockKg || 0) * 1000);
+        const reqKg1000 = Math.round((item.quantity || 0) * 1000);
+        if (availableKg1000 < reqKg1000) {
           return res.status(400).json({
             error: `Insufficient stock for ${prod.name}! Requested: ${item.quantity} KG, Available: ${prod.stockKg} KG.`,
           });
         }
       } else {
-        if (prod.stockPcs < item.quantity) {
+        const availablePcs = prod.stockPcs || 0;
+        const reqPcs = item.quantity || 0;
+        if (availablePcs < reqPcs) {
           return res.status(400).json({
             error: `Insufficient stock for ${prod.name}! Requested: ${item.quantity} PCS, Available: ${prod.stockPcs} PCS.`,
           });
@@ -736,9 +805,9 @@ export async function createExpressApp() {
       const prod = db.products.find((p) => p.id === item.productId)!;
       const stockBefore = item.unit === 'KG' ? prod.stockKg : prod.stockPcs;
       if (item.unit === 'KG') {
-        prod.stockKg = Number((prod.stockKg - item.quantity).toFixed(3));
+        prod.stockKg = Math.max(0, Number(((prod.stockKg || 0) - item.quantity).toFixed(3)));
       } else {
-        prod.stockPcs = Math.max(0, prod.stockPcs - item.quantity);
+        prod.stockPcs = Math.max(0, (prod.stockPcs || 0) - item.quantity);
       }
       const stockAfter = item.unit === 'KG' ? prod.stockKg : prod.stockPcs;
 
@@ -750,7 +819,7 @@ export async function createExpressApp() {
         quantity: item.quantity,
         unit: item.unit,
         referenceNote: `Deducted via Sale ${invoiceNumber}`,
-        recordedBy: agent.name,
+        recordedBy: creatorUser.name,
         date: dt.date,
         time: dt.time,
         createdAtDate: dt.date,
@@ -779,9 +848,23 @@ export async function createExpressApp() {
       }
     }
 
-    // 2. Increase Agent Due & Total Sales
-    agent.totalSales = Number((agent.totalSales + grandTotal).toFixed(2));
-    agent.currentDue = Number((agent.currentDue + grandTotal).toFixed(2));
+    // 2. Adjust Sales & Dues
+    let salePaymentStatus: 'UNPAID' | 'PARTIAL' | 'PAID' = 'UNPAID';
+
+    if (agent.role === 'AGENT') {
+      agent.totalSales = Number((agent.totalSales + grandTotal).toFixed(2));
+      agent.currentDue = Number((agent.currentDue + grandTotal).toFixed(2));
+      salePaymentStatus = 'UNPAID';
+    } else {
+      // Direct Admin counter/factory sale
+      agent.totalSales = Number((agent.totalSales + grandTotal).toFixed(2));
+      if (requestedPaymentStatus === 'UNPAID') {
+        agent.currentDue = Number((agent.currentDue + grandTotal).toFixed(2));
+        salePaymentStatus = 'UNPAID';
+      } else {
+        salePaymentStatus = 'PAID';
+      }
+    }
 
     // 3. Create Sale Record
     const newSale: Sale = {
@@ -797,7 +880,7 @@ export async function createExpressApp() {
       subtotal,
       discount: discountAmount,
       grandTotal,
-      paymentStatus: 'UNPAID',
+      paymentStatus: salePaymentStatus,
       createdAtDate: dt.date,
       createdAtTime: dt.time,
       timestamp: dt.timestamp,
@@ -808,11 +891,11 @@ export async function createExpressApp() {
     // 4. Activity Log
     db.logs.unshift({
       id: `LOG-${Date.now()}`,
-      user: agent.name,
-      role: 'AGENT',
+      user: creatorUser.name,
+      role: creatorUser.role,
       action: 'Sale Created',
       referenceId: invoiceNumber,
-      details: `Sold ${frozenItems.length} items to ${newSale.customerName} for ৳${grandTotal.toLocaleString()}. Added to Agent Due.`,
+      details: `Sold ${frozenItems.length} items to ${newSale.customerName} for ৳${grandTotal.toLocaleString()}. (${agent.role === 'AGENT' ? `Assigned to Agent ${agent.name}` : 'Direct Company Sale'})`,
       date: dt.date,
       time: dt.time,
       timestamp: dt.timestamp,

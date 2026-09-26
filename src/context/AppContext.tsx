@@ -88,6 +88,8 @@ interface AppContextType {
     customerPhone?: string;
     customerAddress?: string;
     discount?: number;
+    assignedAgentId?: string;
+    paymentStatus?: 'PAID' | 'UNPAID';
   }) => Promise<Sale | null>;
   recordPayment: (data: {
     agentId: string;
@@ -289,12 +291,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: phone.trim(), password: pass.trim() }),
       });
-      const data = await res.json();
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      const data = isJson ? await res.json() : null;
+
       if (!res.ok) {
-        showToast(data.error || 'Invalid phone number or password', 'error');
+        showToast(data?.error || `Login failed (${res.status}). Please check credentials.`, 'error');
         setLoading(false);
         return false;
       }
+
       setCurrentUser(data.user);
       sessionStorage.setItem('deshi_bite_user', JSON.stringify(data.user));
       showToast(`Welcome back, ${data.user.name}!`, 'success');
@@ -302,7 +307,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setLoading(false);
       return true;
     } catch (err: any) {
-      showToast('Network error while connecting to authentication service', 'error');
+      showToast('Network error while connecting to authentication service. Please check your connection.', 'error');
       setLoading(false);
       return false;
     }
@@ -316,18 +321,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      const resData = await res.json();
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      const resData = isJson ? await res.json() : null;
+
       if (!res.ok) {
-        showToast(resData.error || 'Registration failed', 'error');
+        showToast(resData?.error || 'Registration failed', 'error');
         setLoading(false);
         return false;
       }
-      showToast(resData.message || 'Registration submitted! Please await Admin approval.', 'success');
+      showToast(resData?.message || 'Registration submitted! Please await Admin approval.', 'success');
       await refreshData();
       setLoading(false);
       return true;
     } catch (err: any) {
-      showToast('Registration error occurred', 'error');
+      showToast('Registration error occurred. Please try again.', 'error');
       setLoading(false);
       return false;
     }
@@ -347,9 +354,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     customerPhone?: string;
     customerAddress?: string;
     discount?: number;
+    assignedAgentId?: string;
+    paymentStatus?: 'PAID' | 'UNPAID';
   }): Promise<Sale | null> => {
-    if (!currentUser || currentUser.role !== 'AGENT') {
-      showToast('Only authorized Executives can record a sale', 'error');
+    if (!currentUser) {
+      showToast('Please sign in to record a sale', 'error');
       return null;
     }
 
@@ -364,9 +373,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }),
       });
 
-      const data = await res.json();
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      const data = isJson ? await res.json() : null;
+
       if (!res.ok) {
-        showToast(data.error || 'Unable to record sale. Insufficient stock.', 'error');
+        showToast(data?.error || `Unable to record sale (${res.status})`, 'error');
         setLoading(false);
         return null;
       }
@@ -376,7 +387,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setLoading(false);
       return data.sale;
     } catch (err: any) {
-      showToast('Network error while recording sale', 'error');
+      showToast('Network error while recording sale. Please check your connection.', 'error');
       setLoading(false);
       return null;
     }

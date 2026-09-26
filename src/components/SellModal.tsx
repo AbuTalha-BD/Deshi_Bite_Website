@@ -19,12 +19,17 @@ export const SellModal: React.FC = () => {
     isSellModalOpen,
     setIsSellModalOpen,
     currentUser,
+    users,
     products,
     createSale,
     setSelectedSaleForInvoice,
     setIsInvoiceModalOpen,
     showToast,
   } = useApp();
+
+  // Admin sale assignment & payment status
+  const [assignedAgentId, setAssignedAgentId] = useState<string>('');
+  const [paymentStatus, setPaymentStatus] = useState<'PAID' | 'UNPAID'>('PAID');
 
   // Step 1: Sale Type
   const [saleType, setSaleType] = useState<SaleType>('RETAIL');
@@ -257,6 +262,8 @@ export const SellModal: React.FC = () => {
       customerPhone: customerPhone || '',
       customerAddress: customerAddress || '',
       discount: Number(discount) || 0,
+      assignedAgentId: currentUser?.role === 'ADMIN' && assignedAgentId ? assignedAgentId : undefined,
+      paymentStatus: currentUser?.role === 'ADMIN' ? paymentStatus : 'UNPAID',
     });
 
     setIsSubmitting(false);
@@ -270,6 +277,8 @@ export const SellModal: React.FC = () => {
       setCustomerAddress('');
       setDiscount(0);
       setSelectedProduct(null);
+      setAssignedAgentId('');
+      setPaymentStatus('PAID');
 
       // Open Invoice preview immediately!
       setSelectedSaleForInvoice(sale);
@@ -733,6 +742,52 @@ export const SellModal: React.FC = () => {
               </>
             )}
           </div>
+
+          {/* ADMIN ATTRIBUTION & PAYMENT (IF ADMIN) */}
+          {currentUser?.role === 'ADMIN' && (
+            <div className="p-4 rounded-2xl border border-purple-200/80 bg-purple-50/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-900">
+                  ORDER ATTRIBUTION & PAYMENT
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-200 text-purple-800 font-extrabold">ADMIN CONTROL</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    RECORDED UNDER / AGENT:
+                  </label>
+                  <select
+                    value={assignedAgentId}
+                    onChange={(e) => setAssignedAgentId(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 focus:outline-hidden focus:border-purple-500 bg-white"
+                  >
+                    <option value="">Direct Outlet / Counter Sale (Admin)</option>
+                    {(users || [])
+                      .filter((u) => u.role === 'AGENT' && u.status === 'ACTIVE')
+                      .map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          Assign to: {agent.name} ({agent.phone})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    PAYMENT STATUS:
+                  </label>
+                  <select
+                    value={paymentStatus}
+                    onChange={(e) => setPaymentStatus(e.target.value as 'PAID' | 'UNPAID')}
+                    className="w-full px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 focus:outline-hidden focus:border-purple-500 bg-white"
+                  >
+                    <option value="PAID">Paid (Cash / Bkash / Instant)</option>
+                    <option value="UNPAID">Unpaid (Credit / Due)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* CUSTOMER INFORMATION (OPTIONAL) */}
           <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/40 space-y-3">

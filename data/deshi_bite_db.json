@@ -21,7 +21,7 @@
       "retailPricePcs": null,
       "wholesalePriceKg": 670,
       "wholesalePricePcs": null,
-      "stockKg": 45,
+      "stockKg": 42,
       "stockPcs": 0,
       "lowStockThresholdKg": 0.5,
       "lowStockThresholdPcs": 10,
@@ -155,7 +155,7 @@
       "passwordHash": "02369",
       "role": "ADMIN",
       "status": "ACTIVE",
-      "totalSales": 0,
+      "totalSales": 700,
       "totalPaid": 0,
       "currentDue": 0,
       "joinedDate": "10 September 2026",
@@ -169,15 +169,105 @@
       "passwordHash": "123456",
       "role": "AGENT",
       "status": "ACTIVE",
-      "totalSales": 0,
+      "totalSales": 1340,
       "totalPaid": 0,
-      "currentDue": 0,
+      "currentDue": 1340,
       "address": "",
       "joinedDate": "17 September 2026"
     }
   ],
-  "sales": [],
-  "stockTransactions": [],
+  "sales": [
+    {
+      "id": "SALE-1790393959255-2",
+      "invoiceNo": "DB-20260926-00002",
+      "agentId": "AGENT-0003",
+      "agentName": "Toha Jamil",
+      "customerName": "Agent Customer",
+      "customerPhone": "",
+      "customerAddress": "",
+      "saleType": "WHOLESALE",
+      "items": [
+        {
+          "productId": "PROD-1002",
+          "productName": "Chicken Nugget",
+          "unit": "KG",
+          "quantity": 2,
+          "unitPrice": 670,
+          "subtotal": 1340
+        }
+      ],
+      "subtotal": 1340,
+      "discount": 0,
+      "grandTotal": 1340,
+      "paymentStatus": "UNPAID",
+      "createdAtDate": "26 September 2026",
+      "createdAtTime": "09:39 AM",
+      "timestamp": 1790393959255
+    },
+    {
+      "id": "SALE-1790393950442-1",
+      "invoiceNo": "DB-20260926-00001",
+      "agentId": "ADMIN-0001",
+      "agentName": "Admin Manager",
+      "customerName": "Test Customer",
+      "customerPhone": "",
+      "customerAddress": "",
+      "saleType": "RETAIL",
+      "items": [
+        {
+          "productId": "PROD-1002",
+          "productName": "Chicken Nugget",
+          "unit": "KG",
+          "quantity": 1,
+          "unitPrice": 700,
+          "subtotal": 700
+        }
+      ],
+      "subtotal": 700,
+      "discount": 0,
+      "grandTotal": 700,
+      "paymentStatus": "PAID",
+      "createdAtDate": "26 September 2026",
+      "createdAtTime": "09:39 AM",
+      "timestamp": 1790393950442
+    }
+  ],
+  "stockTransactions": [
+    {
+      "id": "STX-1790393959255-636",
+      "productId": "PROD-1002",
+      "productName": "Chicken Nugget",
+      "type": "SALE_OUT",
+      "quantity": 2,
+      "unit": "KG",
+      "referenceNote": "Deducted via Sale DB-20260926-00002",
+      "recordedBy": "Toha Jamil",
+      "date": "26 September 2026",
+      "time": "09:39 AM",
+      "createdAtDate": "26 September 2026",
+      "createdAtTime": "09:39 AM",
+      "timestamp": 1790393959255,
+      "stockBefore": 44,
+      "stockAfter": 42
+    },
+    {
+      "id": "STX-1790393950442-230",
+      "productId": "PROD-1002",
+      "productName": "Chicken Nugget",
+      "type": "SALE_OUT",
+      "quantity": 1,
+      "unit": "KG",
+      "referenceNote": "Deducted via Sale DB-20260926-00001",
+      "recordedBy": "Admin Manager",
+      "date": "26 September 2026",
+      "time": "09:39 AM",
+      "createdAtDate": "26 September 2026",
+      "createdAtTime": "09:39 AM",
+      "timestamp": 1790393950442,
+      "stockBefore": 45,
+      "stockAfter": 44
+    }
+  ],
   "payments": [],
   "notifications": [
     {
@@ -239,6 +329,28 @@
     }
   ],
   "logs": [
+    {
+      "id": "LOG-1790393959255",
+      "user": "Toha Jamil",
+      "role": "AGENT",
+      "action": "Sale Created",
+      "referenceId": "DB-20260926-00002",
+      "details": "Sold 1 items to Agent Customer for ৳1,340. (Assigned to Agent Toha Jamil)",
+      "date": "26 September 2026",
+      "time": "09:39 AM",
+      "timestamp": 1790393959255
+    },
+    {
+      "id": "LOG-1790393950442",
+      "user": "Admin Manager",
+      "role": "ADMIN",
+      "action": "Sale Created",
+      "referenceId": "DB-20260926-00001",
+      "details": "Sold 1 items to Test Customer for ৳700. (Direct Company Sale)",
+      "date": "26 September 2026",
+      "time": "09:39 AM",
+      "timestamp": 1790393950442
+    },
     {
       "id": "LOG-1790255770662",
       "user": "Admin Manager",
