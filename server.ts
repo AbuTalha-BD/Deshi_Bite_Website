@@ -911,6 +911,92 @@ export async function createExpressApp() {
     });
   });
 
+  // Sales: Clear All Sales & Due History (Admin only)
+  api.post('/sales/clear', async (req, res) => {
+    const { userId } = req.body;
+    const admin = db.users.find((u) => u.id === userId && u.role === 'ADMIN');
+    if (!admin) {
+      return res.status(403).json({ error: 'Only Admin can clear sales and due history' });
+    }
+
+    db.sales = [];
+    db.payments = [];
+    db.users.forEach((u) => {
+      u.totalSales = 0;
+      u.totalPaid = 0;
+      u.currentDue = 0;
+    });
+
+    // Remove sale-out transactions
+    db.stockTransactions = db.stockTransactions.filter((st) => st.type !== 'SALE_OUT');
+
+    const dt = getBangladeshDateTime();
+    db.logs.unshift({
+      id: `LOG-${Date.now()}`,
+      user: admin.name,
+      role: 'ADMIN',
+      action: 'Sales & Dues Cleared',
+      referenceId: 'ALL',
+      details: 'All sales records, executive dues, and sales history have been cleared by Admin.',
+      date: dt.date,
+      time: dt.time,
+      timestamp: dt.timestamp,
+    });
+
+    await saveDatabase(db);
+    res.json({ success: true, message: 'All sales and due history cleared successfully' });
+  });
+
+  // Sales: Delete single sale order (Admin only)
+  api.delete('/sales/:id', async (req, res) => {
+    const saleId = req.params.id;
+    const saleIndex = db.sales.findIndex((s) => s.id === saleId || s.invoiceNo === saleId);
+    if (saleIndex === -1) {
+      return res.status(404).json({ error: 'Sale record not found' });
+    }
+
+    const sale = db.sales[saleIndex];
+    const agent = db.users.find((u) => u.id === sale.agentId);
+
+    // Rollback agent totalSales and due if unpaid
+    if (agent) {
+      agent.totalSales = Math.max(0, Number((agent.totalSales - sale.grandTotal).toFixed(2)));
+      if (sale.paymentStatus === 'UNPAID') {
+        agent.currentDue = Math.max(0, Number((agent.currentDue - sale.grandTotal).toFixed(2)));
+      }
+    }
+
+    // Restore stock for items in the sale
+    for (const item of sale.items) {
+      const prod = db.products.find((p) => p.id === item.productId);
+      if (prod) {
+        if (item.unit === 'KG') {
+          prod.stockKg = Number(((prod.stockKg || 0) + item.quantity).toFixed(3));
+        } else {
+          prod.stockPcs = (prod.stockPcs || 0) + item.quantity;
+        }
+      }
+    }
+
+    db.sales.splice(saleIndex, 1);
+
+    const dt = getBangladeshDateTime();
+    db.logs.unshift({
+      id: `LOG-${Date.now()}`,
+      user: 'Admin Manager',
+      role: 'ADMIN',
+      action: 'Sale Deleted',
+      referenceId: sale.invoiceNo,
+      details: `Deleted sale ${sale.invoiceNo} (৳${sale.grandTotal}). Restored product inventory.`,
+      date: dt.date,
+      time: dt.time,
+      timestamp: dt.timestamp,
+    });
+
+    await saveDatabase(db);
+    res.json({ success: true, message: `Sale ${sale.invoiceNo} deleted and stock restored` });
+  });
+
   // Stock: Adjustment / Stock In
   api.post('/stock/change', async (req, res) => {
     const { productId, type, quantity, unit, referenceNote, recordedBy } = req.body;

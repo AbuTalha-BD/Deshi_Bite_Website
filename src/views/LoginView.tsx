@@ -128,37 +128,6 @@ export const LoginView: React.FC = () => {
               <span>{loading ? 'Authenticating...' : 'Sign In to Portal'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
-
-            {/* Quick Demo Access Credentials */}
-            <div className="pt-2 border-t border-slate-100 space-y-2">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center">
-                QUICK ACCESS / TEST CREDENTIALS
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPhone('01613522678');
-                    setPassword('02369');
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-[11px] font-bold text-purple-900 text-center transition-colors cursor-pointer"
-                >
-                  <span className="block font-extrabold">👑 Admin Manager</span>
-                  <span className="text-[10px] text-purple-700 font-mono font-medium">01613522678 • 02369</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPhone('01763213388');
-                    setPassword('123456');
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-bold text-slate-800 text-center transition-colors cursor-pointer"
-                >
-                  <span className="block font-extrabold">💼 Field Executive</span>
-                  <span className="text-[10px] text-slate-600 font-mono font-medium">01763213388 • 123456</span>
-                </button>
-              </div>
-            </div>
           </form>
         ) : (
           <form onSubmit={handleRegister} className="space-y-4">

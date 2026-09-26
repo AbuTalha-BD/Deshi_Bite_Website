@@ -91,6 +91,8 @@ interface AppContextType {
     assignedAgentId?: string;
     paymentStatus?: 'PAID' | 'UNPAID';
   }) => Promise<Sale | null>;
+  clearAllSalesAndDues: () => Promise<boolean>;
+  deleteSale: (saleId: string) => Promise<boolean>;
   recordPayment: (data: {
     agentId: string;
     amount: number;
@@ -390,6 +392,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       showToast('Network error while recording sale. Please check your connection.', 'error');
       setLoading(false);
       return null;
+    }
+  };
+
+  const clearAllSalesAndDues = async (): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'ADMIN') {
+      showToast('Only Admin can clear sales and due history', 'error');
+      return false;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/sales/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to clear sales history', 'error');
+        setLoading(false);
+        return false;
+      }
+      showToast('All sales records and due history cleared successfully!', 'success');
+      await refreshData();
+      setLoading(false);
+      return true;
+    } catch {
+      showToast('Error connecting to server', 'error');
+      setLoading(false);
+      return false;
+    }
+  };
+
+  const deleteSale = async (saleId: string): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'ADMIN') {
+      showToast('Only Admin can delete sales orders', 'error');
+      return false;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/sales/${saleId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to delete sale order', 'error');
+        setLoading(false);
+        return false;
+      }
+      showToast(data.message || 'Sale order deleted and stock restored', 'success');
+      await refreshData();
+      setLoading(false);
+      return true;
+    } catch {
+      showToast('Error connecting to server', 'error');
+      setLoading(false);
+      return false;
     }
   };
 
@@ -758,6 +816,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         registerAgent,
         logout,
         createSale,
+        clearAllSalesAndDues,
+        deleteSale,
         recordPayment,
         saveProduct,
         deleteProduct,
